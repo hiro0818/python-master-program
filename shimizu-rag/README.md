@@ -12,7 +12,7 @@
 
 | レイヤー | 技術 | ライセンス | 役割 |
 |---|---|---|---|
-| PDF解析 | pdfplumber | MIT | PDF → ページごとのテキスト抽出 |
+| PDF解析 | pdfplumber | MIT | PDF → ページごとのテキスト + 表（Markdown化） |
 | 埋め込み | BAAI/bge-m3（via sentence-transformers） | Apache 2.0 | 日英両対応、ローカル実行で無料 |
 | ベクターDB | LanceDB | Apache 2.0 | Lance/Parquet互換、フォーマット公開 |
 | 生成 | Claude Opus 4.7（Anthropic API） | API | 引用付き回答生成（`rag/generator.py` 内に隔離） |
@@ -52,8 +52,8 @@ shimizu-rag/
 
 - [x] **Phase 1 (土台)**: ディレクトリ構成・設定・インターフェース型・スタブ
 - [x] **Phase 2 (実装)**: 全モジュールの中身（PDCA で検証済み）
-- [x] **Phase 3 (品質強化)**: pytest（41件）、カスタム例外、SQLite論文レジストリ、ストリーミング、引用検証、Recall@K評価ハーネス
-- [ ] **Phase 4 (運用改善)**: 検索フィルタ、履歴保存、引用クリックでPDFプレビュー、Railway/Render永続化
+- [x] **Phase 3 (品質強化)**: pytest（54件）、カスタム例外、SQLite論文レジストリ、ストリーミング、引用検証、Recall@K評価ハーネス、**表（Table）抽出**
+- [ ] **Phase 4 (運用改善)**: 検索フィルタ、履歴保存、引用クリックでPDFプレビュー、Railway/Render永続化、layout-aware抽出（docling）
 
 ## セットアップ
 
@@ -235,6 +235,36 @@ LLM が `[論文タイトル, p.5]` と書いたとき、その (タイトル部
 - ⚠️ 未検証あり → 黄色バッジ + 詳細を expander 表示
 
 ハルシネーションがプロンプト層をすり抜けても、ここで気付ける。
+
+### PDF表抽出
+
+`pdfplumber.extract_tables()` でページ内の表を抽出し、Markdown 形式に変換して
+ページテキストに統合する。生物学論文の実験データ表（ホルモン濃度、塩分耐性、
+体重・体長、サンプル数 N）が検索対象になる：
+
+```
+（本文…）
+
+## 表（自動抽出）
+
+| Treatment | GH (ng/mL) | Notes |
+| --- | --- | --- |
+| Control | 1.2 | n=10 |
+| IGF-1 | 3.4 | n=10 |
+```
+
+2段組の reading order が崩れるときは環境変数で調整できる：
+
+```bash
+export PDF_X_TOLERANCE=2  # デフォルト 3
+export PDF_Y_TOLERANCE=2
+```
+
+> **既知の限界**:
+> - 画像内の文字（OCR）は対象外。スキャンPDFは別途処理が必要。
+> - 図そのものは取れない（キャプションは extract_text に含まれる）。
+> - layout-aware な抽出が必要なら Phase 4 で `docling` (MIT) を検討。
+>   モデル数百MBが必要なので Streamlit Cloud 1GB 枠だと厳しい。
 
 ## 次にやりたいこと（Phase 4）
 
