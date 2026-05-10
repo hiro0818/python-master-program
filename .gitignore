@@ -39,3 +39,8 @@ data/processed/
 *.key
 *.pem
 secrets/
+
+# shimizu-rag
+shimizu-rag/papers/*.pdf
+shimizu-rag/db/
+shimizu-rag/.env
