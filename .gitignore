@@ -44,3 +44,4 @@ secrets/
 shimizu-rag/papers/*.pdf
 shimizu-rag/db/
 shimizu-rag/.env
+shimizu-rag/.streamlit/secrets.toml

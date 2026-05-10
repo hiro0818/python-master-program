@@ -1,0 +1,12 @@
+# Streamlit のテーマ・実行設定
+[theme]
+primaryColor = "#0891b2"      # シアン系（魚っぽい色）
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f9ff"
+textColor = "#0f172a"
+
+[server]
+maxUploadSize = 50  # MB（万一のファイルアップロードに備えて）
+
+[browser]
+gatherUsageStats = false

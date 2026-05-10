@@ -127,6 +127,52 @@ streamlit run app.py
 4. **流行に乗らず、コモディティを選ぶ** — 埋め込みモデル・LLM プロバイダーは交換前提
 5. **UIロジックとビジネスロジックを分離** — `app.py` は表示だけ、`rag/` がコア
 
+## クラウド公開（Streamlit Cloud）
+
+### 1. リポジトリ準備
+
+PRをmainにマージするか、デプロイしたいブランチを決めておく。
+
+### 2. Streamlit Cloud にサインイン
+
+https://share.streamlit.io/ → GitHubアカウントでサインイン
+
+### 3. 新規アプリ作成
+
+「**New app**」→ 以下を入力：
+
+| 項目 | 値 |
+|---|---|
+| Repository | `hiro0818/python-master-program` |
+| Branch | `main`（またはデプロイ対象のブランチ） |
+| Main file path | `shimizu-rag/app.py` |
+| App URL | お好みのサブドメイン（例: `shimizu-rag`） |
+
+### 4. シークレット設定
+
+「**Advanced settings**」→ Secrets タブに以下を貼る：
+
+```toml
+ANTHROPIC_API_KEY = "sk-ant-xxxxxxxxxxxxxx"
+APP_PASSWORD = "好きなパスワード"
+
+# 1GB RAMで BGE-M3 が苦しい場合は軽量モデルに差し替え
+# EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# EMBEDDING_DIM = 384
+```
+
+### 5. Deploy をクリック
+
+数分でビルド完了。`https://<your-app>.streamlit.app/` でアクセス可能になります。
+パスワード設定済みなら認証画面が出ます。
+
+### 注意点
+
+- **永続化なし**: コンテナ再起動でDBがリセットされます。論文URLは都度サイドバーから再追加する形になります。
+  本格運用にはRailway/Render等の永続ボリュームが必要。
+- **メモリ**: BGE-M3で苦しい場合、シークレットの `EMBEDDING_MODEL_NAME` を軽量モデルに切り替え。
+- **コールドスタート**: 7日間アクセスがないとスリープ。初回起動は数十秒かかります。
+
 ## トラブルシューティング
 
 | 症状 | 対処 |
