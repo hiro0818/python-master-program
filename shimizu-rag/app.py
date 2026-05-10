@@ -16,7 +16,8 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from rag.config import LLM_MODEL, EMBEDDING_MODEL_NAME, TOP_K
-from rag.pipeline import answer
+from rag.pipeline import answer, ingest_url
+from rag.url_loader import URLDownloadError
 from rag.vectorstore import VectorStore
 
 load_dotenv()
@@ -64,7 +65,7 @@ def main() -> None:
         "根拠がないときは「わかりません」と答えます。"
     )
 
-    # サイドバー: ステータス表示
+    # サイドバー: ステータス表示 + URL取り込みフォーム
     with st.sidebar:
         st.subheader("📊 ステータス")
         store = get_store()
@@ -73,7 +74,31 @@ def main() -> None:
         st.markdown(f"**埋め込みモデル**: `{EMBEDDING_MODEL_NAME}`")
         st.markdown(f"**Top-K**: {TOP_K}")
         st.divider()
-        st.markdown("論文を追加するには、`papers/` にPDFを置いて `python ingest.py` を実行。")
+
+        st.subheader("➕ URLから論文を追加")
+        with st.form("url_ingest_form", clear_on_submit=True):
+            url_input = st.text_input(
+                "PDFのURL",
+                placeholder="https://example.com/paper.pdf",
+                help="直リンクPDFのみ対応。著作権・利用規約に注意してください。",
+            )
+            submit = st.form_submit_button("取り込む")
+        if submit and url_input:
+            with st.spinner("ダウンロード + 取り込み中…"):
+                try:
+                    filename, n_chunks = ingest_url(url_input.strip())
+                    st.success(f"✅ {filename}: {n_chunks} 新規チャンク")
+                    get_store.clear()  # キャッシュクリアでカウント更新
+                    st.rerun()
+                except URLDownloadError as e:
+                    st.error(f"❌ {e}")
+                except Exception as e:
+                    st.error(f"❌ 想定外エラー: {type(e).__name__}: {e}")
+
+        st.divider()
+        st.caption(
+            "ローカルPDFは `papers/` に置いて `python ingest.py` を実行することでも追加できます。"
+        )
 
     # チャット履歴
     if "history" not in st.session_state:

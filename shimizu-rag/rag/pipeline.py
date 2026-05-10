@@ -12,6 +12,7 @@ from .config import PAPERS_DIR, TOP_K
 from .generator import answer_question
 from .pdf_loader import load_pdf
 from .types import Answer
+from .url_loader import download_pdf
 from .vectorstore import VectorStore
 
 
@@ -29,6 +30,14 @@ def ingest_all() -> dict[str, int]:
     for pdf_path in sorted(PAPERS_DIR.glob("*.pdf")):
         results[pdf_path.name] = ingest_one(pdf_path, store)
     return results
+
+
+def ingest_url(url: str) -> tuple[str, int]:
+    """URLからPDFを取得して取り込む。(保存ファイル名, 追加チャンク数) を返す。"""
+    pdf_path = download_pdf(url)
+    store = VectorStore()
+    n = ingest_one(pdf_path, store)
+    return pdf_path.name, n
 
 
 def answer(query: str, top_k: int = TOP_K) -> Answer:

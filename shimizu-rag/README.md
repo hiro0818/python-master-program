@@ -33,10 +33,11 @@ shimizu-rag/
     ├── types.py         # 不変インターフェース（dataclass）
     ├── config.py        # パラメータ集約
     ├── pdf_loader.py    # PDF → Page
+    ├── url_loader.py    # URL → ダウンロード → papers/
     ├── chunker.py       # Page → Chunk
     ├── vectorstore.py   # Chunk → LanceDB / 検索
     ├── generator.py     # Claude API 隔離
-    └── pipeline.py      # 高レベルAPI: ingest_all() / answer()
+    └── pipeline.py      # 高レベルAPI: ingest_all() / ingest_url() / answer()
 ```
 
 ## ステータス
@@ -77,10 +78,20 @@ APIキーは https://console.anthropic.com/ から取得できます。
 
 ### 3. 論文を置く
 
+2通りの方法があります。
+
+**方法A: ローカルPDFを papers/ にコピー**
 ```bash
-# papers/ にPDFをコピー
 cp ~/Downloads/Shimizu2024_IGFBP.pdf papers/
 ```
+
+**方法B: Streamlit UI からURLで追加**
+アプリ起動後、サイドバー「➕ URLから論文を追加」にPDFの直リンクURLを貼り付け。
+オープンアクセス論文（Nature OA、bioRxiv、Frontiers、PMC等）に有効。
+
+> **著作権・利用規約に注意**:
+> 大学契約越しのpaywall論文URLをローカル蓄積するのは契約違反になりうる場合があります。
+> オープンアクセス論文か、自分が合法的に取得済みのPDFを使ってください。
 
 ### 4. 取り込み（初回のみ／PDF追加時）
 
