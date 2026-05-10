@@ -69,6 +69,12 @@ cp .env.example .env
 
 APIキーは https://console.anthropic.com/ から取得できます。
 
+#### （任意）パスワード保護
+
+ローカル外（ngrok / SSH トンネル / デプロイ等）に公開する場合は、
+`.env` に `APP_PASSWORD=好きなパスワード` を設定すれば、
+起動時にパスワード入力が要求されます。空のままなら無効です。
+
 ### 3. 論文を置く
 
 ```bash

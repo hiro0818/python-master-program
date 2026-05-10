@@ -2,8 +2,15 @@
 
 使い方:
     streamlit run app.py
+
+オプション:
+    .env に APP_PASSWORD を設定すると、起動時にパスワード入力を要求する。
+    未設定ならパスワードゲートは無効（ローカル単独利用向け）。
 """
 from __future__ import annotations
+
+import hmac
+import os
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -21,8 +28,36 @@ def get_store() -> VectorStore:
     return VectorStore()
 
 
+def _check_password() -> bool:
+    """APP_PASSWORD が設定されていれば認証を要求。
+
+    タイミング攻撃を避けるため hmac.compare_digest を使用。
+    未設定（空文字含む）なら常に通す。
+    """
+    expected = os.getenv("APP_PASSWORD", "").strip()
+    if not expected:
+        return True
+
+    if st.session_state.get("password_ok"):
+        return True
+
+    st.title("🔒 清水研RAG ─ パスワード")
+    pw = st.text_input("パスワードを入力してください", type="password")
+    if not pw:
+        st.stop()
+    if hmac.compare_digest(pw, expected):
+        st.session_state.password_ok = True
+        st.rerun()
+    else:
+        st.error("パスワードが違います。")
+        st.stop()
+    return False  # unreachable
+
+
 def main() -> None:
     st.set_page_config(page_title="清水研RAG", page_icon="🐟", layout="wide")
+    if not _check_password():
+        return
     st.title("🐟 清水研RAG")
     st.caption(
         "清水研（北大）の論文に基づいて質問に答えます。回答には必ず引用が付きます。"
