@@ -15,9 +15,12 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 
-from rag.config import LLM_MODEL, EMBEDDING_MODEL_NAME, TOP_K
-from rag.pipeline import answer, ingest_url
-from rag.url_loader import URLDownloadError
+from rag.citation_verifier import CitationCheck, verify_citations
+from rag.config import EMBEDDING_MODEL_NAME, LLM_MODEL, TOP_K
+from rag.exceptions import RAGError
+from rag.pipeline import answer_stream, ingest_url
+from rag.registry import list_papers
+from rag.types import Hit
 from rag.vectorstore import VectorStore
 
 load_dotenv()
@@ -65,7 +68,57 @@ def main() -> None:
         "根拠がないときは「わかりません」と答えます。"
     )
 
-    # サイドバー: ステータス表示 + URL取り込みフォーム
+    _render_sidebar()
+
+    # チャット履歴
+    if "history" not in st.session_state:
+        st.session_state.history = []
+
+    for entry in st.session_state.history:
+        with st.chat_message(entry["role"]):
+            st.markdown(entry["content"])
+            if entry["role"] == "assistant":
+                if entry.get("citation_checks"):
+                    _render_citation_badges(entry["citation_checks"])
+                if entry.get("citations"):
+                    _render_citations(entry["citations"])
+
+    # 入力
+    query = st.chat_input("質問を入力（例: サクラマスのスモルト化に関わるホルモンは？）")
+    if not query:
+        return
+
+    st.session_state.history.append({"role": "user", "content": query})
+    with st.chat_message("user"):
+        st.markdown(query)
+
+    with st.chat_message("assistant"):
+        try:
+            with st.spinner("検索中..."):
+                stream, hits = answer_stream(query)
+            full_text = st.write_stream(stream)
+        except RAGError as e:
+            st.error(f"❌ {e}")
+            return
+        except Exception as e:
+            st.error(f"想定外エラー: {type(e).__name__}: {e}")
+            return
+
+        checks = verify_citations(full_text, hits)
+        _render_citation_badges(checks)
+        if hits:
+            _render_citations(hits)
+        st.session_state.history.append(
+            {
+                "role": "assistant",
+                "content": full_text,
+                "citations": hits,
+                "citation_checks": checks,
+            }
+        )
+
+
+def _render_sidebar() -> None:
     with st.sidebar:
         st.subheader("📊 ステータス")
         store = get_store()
@@ -88,58 +141,55 @@ def main() -> None:
                 try:
                     filename, n_chunks = ingest_url(url_input.strip())
                     st.success(f"✅ {filename}: {n_chunks} 新規チャンク")
-                    get_store.clear()  # キャッシュクリアでカウント更新
+                    get_store.clear()
                     st.rerun()
-                except URLDownloadError as e:
+                except RAGError as e:
                     st.error(f"❌ {e}")
                 except Exception as e:
                     st.error(f"❌ 想定外エラー: {type(e).__name__}: {e}")
+
+        st.divider()
+        st.subheader("📚 取り込み済み論文")
+        try:
+            papers = list_papers()
+        except RAGError as e:
+            st.warning(f"レジストリ読み込み失敗: {e}")
+            papers = []
+        if not papers:
+            st.caption("まだありません。")
+        else:
+            for p in papers:
+                with st.expander(f"📄 {p.paper_title}"):
+                    st.markdown(f"- ページ数: {p.n_pages}")
+                    st.markdown(f"- チャンク数（累積）: {p.n_chunks}")
+                    st.markdown(f"- 取り込み日時: `{p.ingested_at}`")
+                    if p.source_url:
+                        st.markdown(f"- URL: {p.source_url}")
+                    st.caption(f"📁 `{p.source_path}`")
 
         st.divider()
         st.caption(
             "ローカルPDFは `papers/` に置いて `python ingest.py` を実行することでも追加できます。"
         )
 
-    # チャット履歴
-    if "history" not in st.session_state:
-        st.session_state.history = []
 
-    for entry in st.session_state.history:
-        with st.chat_message(entry["role"]):
-            st.markdown(entry["content"])
-            if entry["role"] == "assistant" and entry.get("citations"):
-                _render_citations(entry["citations"])
-
-    # 入力
-    query = st.chat_input("質問を入力（例: サクラマスのスモルト化に関わるホルモンは？）")
-    if not query:
+def _render_citation_badges(checks: list[CitationCheck]) -> None:
+    if not checks:
         return
-
-    st.session_state.history.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
-
-    with st.chat_message("assistant"):
-        with st.spinner("検索 + 回答生成中..."):
-            try:
-                result = answer(query)
-            except Exception as e:
-                st.error(f"エラー: {type(e).__name__}: {e}")
-                return
-
-            st.markdown(result.text)
-            if result.citations:
-                _render_citations(result.citations)
-            st.session_state.history.append(
-                {
-                    "role": "assistant",
-                    "content": result.text,
-                    "citations": result.citations,
-                }
-            )
+    verified = sum(1 for c in checks if c.verified)
+    total = len(checks)
+    if verified == total:
+        st.success(f"✅ 引用検証: {verified}/{total} 一致")
+        return
+    st.warning(f"⚠️ 引用検証: {verified}/{total} 一致 ─ 未検証の引用があります")
+    with st.expander("未検証の引用一覧"):
+        for c in checks:
+            if c.verified:
+                continue
+            st.markdown(f"- `{c.raw}` ─ {c.reason}")
 
 
-def _render_citations(citations: list) -> None:
+def _render_citations(citations: list[Hit]) -> None:
     with st.expander(f"📄 検索された抜粋 ({len(citations)} 件)"):
         for i, h in enumerate(citations, 1):
             st.markdown(

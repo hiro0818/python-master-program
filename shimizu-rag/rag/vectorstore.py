@@ -7,7 +7,7 @@
     - 同じ chunk_id を複数回追加しても重複保存しない（idempotent ingest）
     - normalize_embeddings=True で正規化済みベクターを保存し、
       cosine相当の類似度で検索する
-    - search() の戻り値 score は 1.0 - normalized_distance/2 でcosine相当
+    - search() の戻り値 score は distance_to_score() で cosine 相当に変換
 """
 from __future__ import annotations
 
@@ -24,14 +24,36 @@ from .config import (
     TABLE_NAME,
     TOP_K,
 )
+from .exceptions import EmbeddingError
 from .types import Chunk, Hit
+
+
+def distance_to_score(distance: float) -> float:
+    """LanceDB の L2² 距離を cosine 相当の類似度 [0, 1] に変換。
+
+    正規化済みベクターのとき ||a-b||² = 2(1 - cos_sim) なので
+    score = 1 - distance/2 が cosine_similarity と一致する。
+    分かりやすさのため 0..1 にクランプ。
+    """
+    score = 1.0 - distance / 2.0
+    if score < 0.0:
+        return 0.0
+    if score > 1.0:
+        return 1.0
+    return score
 
 
 class VectorStore:
     def __init__(self) -> None:
         DB_DIR.mkdir(parents=True, exist_ok=True)
         self._db = lancedb.connect(str(DB_DIR))
-        self._model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        try:
+            self._model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        except Exception as e:
+            raise EmbeddingError(
+                f"埋め込みモデル '{EMBEDDING_MODEL_NAME}' のロードに失敗しました: "
+                f"{type(e).__name__}: {e}"
+            ) from e
         self._table = self._open_or_create_table()
 
     def _open_or_create_table(self) -> Any:
@@ -58,9 +80,22 @@ class VectorStore:
         if not new_chunks:
             return 0
         texts = [c.text for c in new_chunks]
-        vectors = self._model.encode(
-            texts, normalize_embeddings=True, show_progress_bar=False
-        ).tolist()
+        try:
+            vectors = self._model.encode(
+                texts, normalize_embeddings=True, show_progress_bar=False
+            ).tolist()
+        except Exception as e:
+            raise EmbeddingError(
+                f"埋め込み計算に失敗しました: {type(e).__name__}: {e}"
+            ) from e
+
+        if vectors and len(vectors[0]) != EMBEDDING_DIM:
+            raise EmbeddingError(
+                f"埋め込み次元の不一致: モデル出力 {len(vectors[0])} 次元 / "
+                f"設定 EMBEDDING_DIM={EMBEDDING_DIM}。"
+                "config.py または環境変数 EMBEDDING_DIM を見直してください。"
+            )
+
         rows = [
             {
                 "vector": vec,
@@ -86,19 +121,23 @@ class VectorStore:
 
     def search(self, query: str, top_k: int = TOP_K) -> list[Hit]:
         """質問に近いチャンクを top_k 件取得。"""
-        query_vec = self._model.encode(
-            [query], normalize_embeddings=True, show_progress_bar=False
-        )[0].tolist()
+        try:
+            query_vec = self._model.encode(
+                [query], normalize_embeddings=True, show_progress_bar=False
+            )[0].tolist()
+        except Exception as e:
+            raise EmbeddingError(
+                f"クエリの埋め込みに失敗しました: {type(e).__name__}: {e}"
+            ) from e
+
         results = self._table.search(query_vec).limit(top_k).to_arrow()
         hits: list[Hit] = []
         for row in results.to_pylist():
             distance = float(row.get("_distance", 0.0))
-            # 正規化済みベクターのL2² は 2(1 - cos_sim)
-            score = 1.0 - distance / 2.0
             hits.append(
                 Hit(
                     text=row["text"],
-                    score=score,
+                    score=distance_to_score(distance),
                     paper_title=row["paper_title"],
                     page_num=int(row["page_num"]),
                     source_path=row["source_path"],

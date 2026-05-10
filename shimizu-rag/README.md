@@ -23,28 +23,37 @@
 ```
 shimizu-rag/
 ├── README.md
-├── requirements.txt
-├── .env.example         # ANTHROPIC_API_KEY=
-├── app.py               # Streamlit エントリポイント
-├── ingest.py            # CLI: papers/ → ベクターDB
-├── papers/              # PDFをここに置く（gitignore）
+├── requirements.txt          # 本番依存
+├── requirements-dev.txt      # 開発依存（pytest）
+├── .env.example              # ANTHROPIC_API_KEY=
+├── app.py                    # Streamlit エントリポイント
+├── ingest.py                 # CLI: papers/ → ベクターDB
+├── papers/                   # PDFをここに置く（gitignore）
+├── eval/
+│   ├── questions.yaml        # 検索評価用の質問セット
+│   └── evaluate.py           # Recall@K 計算スクリプト
+├── tests/                    # pytest ユニットテスト
 └── rag/
     ├── __init__.py
-    ├── types.py         # 不変インターフェース（dataclass）
-    ├── config.py        # パラメータ集約
-    ├── pdf_loader.py    # PDF → Page
-    ├── url_loader.py    # URL → ダウンロード → papers/
-    ├── chunker.py       # Page → Chunk
-    ├── vectorstore.py   # Chunk → LanceDB / 検索
-    ├── generator.py     # Claude API 隔離
-    └── pipeline.py      # 高レベルAPI: ingest_all() / ingest_url() / answer()
+    ├── types.py              # 不変インターフェース（dataclass）
+    ├── config.py             # パラメータ集約
+    ├── exceptions.py         # 例外階層（RAGError 配下）
+    ├── pdf_loader.py         # PDF → Page
+    ├── url_loader.py         # URL → ダウンロード → papers/
+    ├── chunker.py            # Page → Chunk
+    ├── vectorstore.py        # Chunk → LanceDB / 検索
+    ├── generator.py          # Claude API 隔離（ストリーミング対応）
+    ├── citation_verifier.py  # [title, p.N] とヒットの照合
+    ├── registry.py           # 取り込み済み論文の SQLite レジストリ
+    └── pipeline.py           # 高レベルAPI: ingest_all/url/answer/answer_stream
 ```
 
 ## ステータス
 
 - [x] **Phase 1 (土台)**: ディレクトリ構成・設定・インターフェース型・スタブ
 - [x] **Phase 2 (実装)**: 全モジュールの中身（PDCA で検証済み）
-- [ ] **Phase 3 (改善)**: 検索フィルタ、履歴保存、論文一覧画面、Streaming回答
+- [x] **Phase 3 (品質強化)**: pytest（41件）、カスタム例外、SQLite論文レジストリ、ストリーミング、引用検証、Recall@K評価ハーネス
+- [ ] **Phase 4 (運用改善)**: 検索フィルタ、履歴保存、引用クリックでPDFプレビュー、Railway/Render永続化
 
 ## セットアップ
 
@@ -182,11 +191,56 @@ APP_PASSWORD = "好きなパスワード"
 | BGE-M3 ダウンロードが遅い | 初回のみ。ネット接続を確認 |
 | 検索結果が0件 | `papers/` にPDFを置いて `python ingest.py` を実行 |
 
-## 次にやりたいこと（Phase 3）
+## 品質保証
 
-- [ ] 質問・回答の履歴保存（SQLite）
+### テスト
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+41 件のユニットテスト：
+
+| ファイル | カバー範囲 |
+|---|---|
+| `test_chunker.py` | スライディングウィンドウ、決定的 chunk_id、ページ境界の保持 |
+| `test_vectorstore_score.py` | L2² → cosine 変換式の単調性・境界値 |
+| `test_citation_verifier.py` | `[title, p.N]` 抽出（全角ブラケット含む）、検証ロジック |
+| `test_registry.py` | SQLite upsert、URL保持、件数・ソート |
+| `test_url_loader.py` | ファイル名サニタイズ、スキーム検証 |
+| `test_exceptions.py` | 例外階層、`except RAGError` で全捕捉できること |
+
+ネットワーク・APIキー・モデルダウンロード不要で完結する。
+
+### 検索精度の評価（Recall@K）
+
+`eval/questions.yaml` に「期待される論文・ページ」を書いて：
+
+```bash
+python eval/evaluate.py             # config.TOP_K で評価
+python eval/evaluate.py --top-k 12  # K を上書きして比較
+```
+
+- 設定（埋め込みモデル / TOP_K / CHUNK_SIZE_CHARS）を振って Recall@K の変化を見る
+- まず 20 問程度書くと統計的に意味がある
+- 配属後に論文を読みながらエントリを足す運用
+
+### 引用検証
+
+LLM が `[論文タイトル, p.5]` と書いたとき、その (タイトル部分一致, ページ厳密一致) の
+チャンクが実際に検索ヒットに含まれていたかを後段で検証し、UIにバッジ表示する：
+
+- ✅ 全引用が一致 → 緑バッジ
+- ⚠️ 未検証あり → 黄色バッジ + 詳細を expander 表示
+
+ハルシネーションがプロンプト層をすり抜けても、ここで気付ける。
+
+## 次にやりたいこと（Phase 4）
+
+- [ ] 質問・回答の履歴保存（既存の `papers.sqlite` に history テーブル追加）
 - [ ] 論文ごとのフィルタリング（「IGFBP関連の論文だけから探す」）
-- [ ] 取り込み済み論文の一覧画面
-- [ ] Streamingで回答を逐次表示
 - [ ] 引用クリックで該当PDFをプレビュー
-- [ ] 簡易テスト（pytest）整備
+- [ ] PDF抽出を `unstructured` or `marker` に切替（図表・2段組対応）
+- [ ] Railway/Render に移して永続ボリューム化
+- [ ] 検索精度のドメイン特化（PubMedBERT / SciBERT 比較）

@@ -12,13 +12,14 @@ from urllib.parse import urlparse
 import httpx
 
 from .config import PAPERS_DIR
+from .exceptions import URLDownloadError
 
 DEFAULT_TIMEOUT_SEC = 60.0
 MAX_BYTES = 50 * 1024 * 1024  # 50 MB 上限（暴走対策）
 
 
-class URLDownloadError(Exception):
-    """URL取得に関する全ての失敗を表す。"""
+# 旧: rag.url_loader.URLDownloadError として参照されていたので alias を維持。
+__all__ = ["download_pdf", "URLDownloadError", "DEFAULT_TIMEOUT_SEC", "MAX_BYTES"]
 
 
 def download_pdf(url: str, timeout: float = DEFAULT_TIMEOUT_SEC) -> Path:
@@ -48,6 +49,8 @@ def download_pdf(url: str, timeout: float = DEFAULT_TIMEOUT_SEC) -> Path:
                     f"ファイルサイズが大きすぎます ({len(content)/1e6:.1f} MB > 50 MB)"
                 )
             save_path.write_bytes(content)
+    except URLDownloadError:
+        raise
     except httpx.HTTPStatusError as e:
         raise URLDownloadError(
             f"HTTPエラー {e.response.status_code}: {url}"

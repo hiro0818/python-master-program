@@ -1,0 +1,46 @@
+# 検索評価用の質問セット。
+#
+# 各エントリは以下のスキーマに従う:
+#   - id: 一意の識別子（任意の文字列）
+#     question: ユーザーが投げる質問（日本語）
+#     expected:
+#       - title_substring: 取得されてほしい論文タイトルの部分文字列（小文字比較）
+#         page: そのチャンクが含まれてほしいページ番号
+#       - ... 複数指定で OR 判定（「これらのいずれかが Top-K に入っていれば正解」）
+#     notes: メモ（評価時の参考用、必須ではない）
+#
+# 使い方:
+#   python eval/evaluate.py            # 既存DBに対して Recall@K を計測
+#   python eval/evaluate.py --top-k 12 # Top-K を上書き
+#
+# 重要:
+#   - このYAMLは「真の正解」を与える人間の責任。論文を実際に読んだ上で書く。
+#   - 論文を取り込む前は空でOK。取り込みが進んだら徐々にエントリを足す。
+#   - 20件を目標にすると統計的に意味のある Recall@K が出る。
+#
+# 以下はテンプレート例（清水研の取り込みが進んだら実物に書き換える）:
+
+questions:
+  - id: example-smolt
+    question: サクラマスのスモルト化に関わる主要なホルモンは何か？
+    expected:
+      - title_substring: shimizu
+        page: 1
+    notes: |
+      仮の例。実際に論文を取り込んだら、該当するページ番号を確認して書き換える。
+
+  - id: example-igfbp
+    question: IGFBP-2b の機能について清水研は何を明らかにしたか？
+    expected:
+      - title_substring: igfbp
+        page: 1
+    notes: |
+      仮の例。
+
+  - id: example-chum-seawater
+    question: シロザケの長期海水飼育の意義は？
+    expected:
+      - title_substring: chum
+        page: 1
+    notes: |
+      仮の例。

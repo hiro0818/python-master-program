@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from typing import Iterator
+
 from anthropic import Anthropic
 
 from .config import LLM_MAX_TOKENS, LLM_MODEL
@@ -36,38 +38,41 @@ def _build_context(hits: list[Hit]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def answer_question(query: str, hits: list[Hit]) -> Answer:
-    """検索済みチャンクを根拠に Claude Opus 4.7 で回答生成。
+def _build_user_message(query: str, hits: list[Hit]) -> str:
+    context = _build_context(hits)
+    return (
+        f"# コンテキスト（論文抜粋）\n{context}\n\n"
+        f"# ユーザーの質問\n{query}\n\n"
+        "上記のコンテキストのみを根拠に、ルールに従って日本語で回答してください。"
+    )
 
-    Anthropic SDK はこの関数内でのみ使用される。
-    """
-    client = Anthropic()
+
+def _system_blocks() -> list[dict]:
+    # cache_control で 2回目以降のシステムプロンプトを安く
+    return [
+        {
+            "type": "text",
+            "text": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+
+def answer_question(query: str, hits: list[Hit]) -> Answer:
+    """検索済みチャンクを根拠に Claude Opus 4.7 で回答生成（ブロッキング）。"""
     if not hits:
         return Answer(
             text="提供された論文には関連する記載が見つかりませんでした。",
             citations=[],
         )
 
-    context = _build_context(hits)
-    user_message = (
-        f"# コンテキスト（論文抜粋）\n{context}\n\n"
-        f"# ユーザーの質問\n{query}\n\n"
-        "上記のコンテキストのみを根拠に、ルールに従って日本語で回答してください。"
-    )
-
+    client = Anthropic()
     response = client.messages.create(
         model=LLM_MODEL,
         max_tokens=LLM_MAX_TOKENS,
         thinking={"type": "adaptive"},
-        # システムプロンプトはほぼ固定 → cache_control で 2回目以降を安く
-        system=[
-            {
-                "type": "text",
-                "text": SYSTEM_PROMPT,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[{"role": "user", "content": user_message}],
+        system=_system_blocks(),
+        messages=[{"role": "user", "content": _build_user_message(query, hits)}],
     )
 
     text = next(
@@ -75,3 +80,26 @@ def answer_question(query: str, hits: list[Hit]) -> Answer:
         "",
     )
     return Answer(text=text, citations=hits)
+
+
+def stream_answer_question(query: str, hits: list[Hit]) -> Iterator[str]:
+    """検索済みチャンクを根拠に Claude で回答生成（ストリーミング）。
+
+    text_stream をそのまま yield する。空 hits の場合は固定文を1度だけ返す。
+    Anthropic SDK の `messages.stream(...)` を内部で使うため、
+    呼び出し側はジェネレータを最後まで消費すれば通信が完了する。
+    """
+    if not hits:
+        yield "提供された論文には関連する記載が見つかりませんでした。"
+        return
+
+    client = Anthropic()
+    with client.messages.stream(
+        model=LLM_MODEL,
+        max_tokens=LLM_MAX_TOKENS,
+        thinking={"type": "adaptive"},
+        system=_system_blocks(),
+        messages=[{"role": "user", "content": _build_user_message(query, hits)}],
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
