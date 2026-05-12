@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# 大きな画像データと学習済み重みは別管理
+data/raw/**/*.jpg
+data/raw/**/*.jpeg
+data/raw/**/*.png
+data/raw/**/*.webp
+data/interim/
+models/*.pt
+models/*.pth
+models/gradcam/
+
+# レポート出力
+models/confusion_matrix.png
+models/metrics.json
+models/*.csv
+
+# IDE
+.vscode/
+.idea/
