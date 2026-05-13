@@ -199,6 +199,35 @@ def cost_aware_threshold(
     }
 
 
+def cost_sensitivity_analysis(
+    preds: FoldPredictions,
+    cost_ratios: Optional[list[float]] = None,
+) -> dict:
+    """コスト比 (FN/FP) を変えた時の最適閾値と Recall の推移を集計。
+
+    修論で「FN:FP=10:1 はあくまで仮定」という指摘に備えるためのもの。
+    複数のコスト比で最適閾値・Recall・FN を並べて、結論の頑健性を示す。
+    """
+    cost_ratios = cost_ratios or [1.0, 2.0, 5.0, 10.0, 20.0, 50.0]
+    rows = []
+    for ratio in cost_ratios:
+        res = cost_aware_threshold(preds, cost_fn=ratio, cost_fp=1.0)
+        opt = res["optimal_metrics"]
+        rows.append(
+            {
+                "cost_ratio_fn_over_fp": float(ratio),
+                "best_threshold": res["best_threshold"],
+                "recall": opt["recall"],
+                "precision": opt["precision"],
+                "f1": opt["f1"],
+                "mcc": opt["mcc"],
+                "fn": opt["fn"],
+                "fp": opt["fp"],
+            }
+        )
+    return {"sensitivity": rows}
+
+
 def evaluate_distribution_shift(
     preds: FoldPredictions,
     positive_ratios: Optional[list[float]] = None,

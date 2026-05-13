@@ -16,10 +16,12 @@ matplotlib.use("Agg")  # ヘッドレス環境用
 from src.evaluate import (  # noqa: E402
     FoldPredictions,
     cost_aware_threshold,
+    cost_sensitivity_analysis,
     evaluate_distribution_shift,
     compute_metrics,
 )
 from src.visualize import (  # noqa: E402
+    plot_cost_sensitivity,
     plot_cost_threshold_curve,
     plot_distribution_shift,
     plot_metric_summary_bar,
@@ -77,9 +79,17 @@ def test_plot_metric_summary_bar(preds: FoldPredictions, tmp_path: Path) -> None
     assert (tmp_path / "summary.png").exists()
 
 
+def test_plot_cost_sensitivity(preds: FoldPredictions, tmp_path: Path) -> None:
+    sens = cost_sensitivity_analysis(preds)
+    fig = plot_cost_sensitivity(sens, tmp_path / "sens.png")
+    assert fig is not None
+    assert (tmp_path / "sens.png").exists()
+
+
 def test_save_all_figures(preds: FoldPredictions, tmp_path: Path) -> None:
     cost = cost_aware_threshold(preds)
     shift = evaluate_distribution_shift(preds)
+    sens = cost_sensitivity_analysis(preds)
     metrics = compute_metrics(preds)
     paths = save_all_figures(
         preds=preds,
@@ -87,7 +97,17 @@ def test_save_all_figures(preds: FoldPredictions, tmp_path: Path) -> None:
         shift_result=shift,
         metrics=metrics,
         out_dir=tmp_path / "figures",
+        sensitivity_result=sens,
     )
+    expected = {
+        "pr_curve",
+        "roc_curve",
+        "cost_threshold",
+        "distribution_shift",
+        "metric_summary",
+        "cost_sensitivity",
+    }
+    assert expected.issubset(paths.keys())
     for name, path in paths.items():
         assert path.exists(), f"{name} should exist at {path}"
 

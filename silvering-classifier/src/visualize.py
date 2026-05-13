@@ -154,6 +154,51 @@ def plot_distribution_shift(shift_result: dict, out_path: Optional[Path] = None)
     return _save_and_return(fig, out_path)
 
 
+def plot_cost_sensitivity(sensitivity_result: dict, out_path: Optional[Path] = None):
+    """コスト比を振った時の最適閾値・Recall・FN の推移。
+
+    修論「FN:FP=10:1 という仮定の頑健性」のdefendに使う。
+
+    Args:
+        sensitivity_result: evaluate.cost_sensitivity_analysis() の戻り値。
+    """
+    import matplotlib.pyplot as plt
+
+    rows = sensitivity_result["sensitivity"]
+    ratios = [r["cost_ratio_fn_over_fp"] for r in rows]
+    thresholds = [r["best_threshold"] for r in rows]
+    recalls = [r["recall"] for r in rows]
+    fns = [r["fn"] for r in rows]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.5))
+
+    ax1.plot(ratios, thresholds, marker="o", lw=2, color="C3", label="Optimal threshold")
+    ax1.set_xscale("log")
+    ax1.set_xlabel("Cost ratio (FN / FP)")
+    ax1.set_ylabel("Optimal threshold")
+    ax1.set_title("Threshold shifts with cost ratio")
+    ax1.axhline(0.5, ls=":", color="gray", label="Default (0.5)")
+    ax1.legend()
+    ax1.grid(alpha=0.3, which="both")
+
+    ax2.plot(ratios, recalls, marker="s", lw=2, color="C2", label="Recall")
+    ax2.set_xscale("log")
+    ax2.set_xlabel("Cost ratio (FN / FP)")
+    ax2.set_ylabel("Recall", color="C2")
+    ax2.tick_params(axis="y", labelcolor="C2")
+    ax2.set_ylim(0, 1.05)
+    ax2b = ax2.twinx()
+    ax2b.plot(ratios, fns, marker="v", lw=2, color="C0", label="FN count")
+    ax2b.set_ylabel("FN count", color="C0")
+    ax2b.tick_params(axis="y", labelcolor="C0")
+    ax2.set_title("Recall and FN under varying cost ratios")
+    ax2.grid(alpha=0.3)
+
+    fig.suptitle("Cost-ratio sensitivity analysis", fontsize=11)
+    fig.tight_layout()
+    return _save_and_return(fig, out_path)
+
+
 def plot_metric_summary_bar(metrics: dict, out_path: Optional[Path] = None):
     """主要指標を1枚の棒グラフで俯瞰。スライド冒頭に使える。
 
@@ -192,8 +237,9 @@ def save_all_figures(
     shift_result: dict,
     metrics: dict,
     out_dir: Path,
+    sensitivity_result: Optional[dict] = None,
 ) -> dict[str, Path]:
-    """5枚をまとめて保存。修論Figure用の一括出力。"""
+    """主要な可視化をまとめて保存。修論Figure用の一括出力。"""
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {
         "pr_curve": out_dir / "pr_curve.png",
@@ -207,4 +253,7 @@ def save_all_figures(
     plot_cost_threshold_curve(cost_result, paths["cost_threshold"])
     plot_distribution_shift(shift_result, paths["distribution_shift"])
     plot_metric_summary_bar(metrics, paths["metric_summary"])
+    if sensitivity_result is not None:
+        paths["cost_sensitivity"] = out_dir / "cost_sensitivity.png"
+        plot_cost_sensitivity(sensitivity_result, paths["cost_sensitivity"])
     return paths

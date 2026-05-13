@@ -17,6 +17,7 @@ from src.evaluate import (  # noqa: E402
     collect_cv_predictions,
     compute_metrics,
     cost_aware_threshold,
+    cost_sensitivity_analysis,
     evaluate_distribution_shift,
     plot_confusion_matrix,
     save_gradcam_examples,
@@ -62,6 +63,10 @@ def main() -> int:
         shift = evaluate_distribution_shift(preds)
         print(json.dumps(shift, indent=2, ensure_ascii=False))
 
+        print("\n[4b/5] コスト比 sensitivity analysis")
+        sensitivity = cost_sensitivity_analysis(preds)
+        print(json.dumps(sensitivity, indent=2, ensure_ascii=False))
+
         print("\n[5/5] 混同行列・プレゼン用Figure・Grad-CAM を保存")
         cm_path = MODELS_DIR / "confusion_matrix.png"
         cm_result = plot_confusion_matrix(cm_path, preds=preds)
@@ -75,6 +80,7 @@ def main() -> int:
             shift_result=shift,
             metrics=metrics,
             out_dir=figures_dir,
+            sensitivity_result=sensitivity,
         )
         for name, path in fig_paths.items():
             print(f"   📈 {name}: {path}")
@@ -90,6 +96,7 @@ def main() -> int:
                     "training_summary": summary,
                     "metrics_at_0.5": metrics,
                     "cost_optimization": cost,
+                    "cost_sensitivity": sensitivity,
                     "distribution_shift": shift,
                     "confusion_matrix": cm_result,
                     "predictions": {

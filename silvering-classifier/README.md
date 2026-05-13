@@ -92,12 +92,50 @@ python scripts/03_run_baseline.py
 - `models/confusion_matrix.png` — 混同行列
 - `models/gradcam/*.png` — Grad-CAM 可視化（モデルがどこを見ているか）
 - `models/metrics.json` — accuracy, F1, AUC
+- `models/evaluation_report.json` — 全指標 + 予測値（Notebookで再可視化用）
+- `models/figures/*.png` — PR/ROC/コスト/分布シフト/sensitivity 図
 
 ### 5. 単画像推論
 
 ```bash
 python src/predict.py path/to/image.jpg
 ```
+
+### 6. ダッシュボード（修論プレゼン・配属面談用）
+
+```bash
+streamlit run app.py
+```
+
+タブ構成:
+- **Overview** — 研究概要 + パイプライン図
+- **Evaluation** — PR/ROC/コスト/分布シフト/sensitivity の各図
+- **Cost Playground** — FN/FP コスト比をスライダーで操作、最適閾値が即更新
+- **Try It** — 画像をアップロード → silvering_score + Grad-CAM
+- **About** — 設計思想 + 参照文献
+
+Streamlit Cloud にもデプロイ可能（shimizu-rag と同じ構成）。
+
+### 7. 修論Figureだけ別途生成
+
+```bash
+jupyter notebook notebooks/evaluation_report.ipynb
+```
+
+PNG (200dpi スライド用) と PDF (LaTeX `\includegraphics` 用) を一括出力。
+さらに修論本文用LaTeX summary table も自動生成される。
+
+## 評価指標の defendsability
+
+| 指標 | 目的 | 参照 |
+|---|---|---|
+| MCC | 不均衡データでロバストな総合指標 | 評価指標入門 3.5 |
+| PR-AUC | 正例(smolt)が少ない時の本命 | 同 3.11 |
+| Cost-aware threshold | 銀化見落とし vs 誤検出の非対称コストを反映 | 同 3.16.4 |
+| Distribution shift | 養殖場ごとに parr/smolt 比率が違う想定 | 同 3.13 |
+| Cost sensitivity | コスト比仮定の頑健性 | 同上 |
+
+実装は `references/evaluation_book/` (Apache-2.0, gitignored) を参考にしている。
 
 ## 配属時の見せ方
 

@@ -12,6 +12,7 @@ from src.evaluate import (
     FoldPredictions,
     compute_metrics,
     cost_aware_threshold,
+    cost_sensitivity_analysis,
     evaluate_distribution_shift,
 )
 
@@ -185,3 +186,43 @@ def test_evaluate_distribution_shift_handles_single_class() -> None:
     )
     res = evaluate_distribution_shift(preds)
     assert "error" in res
+
+
+# -------------------------- cost_sensitivity_analysis --------------------------
+
+
+def test_cost_sensitivity_analysis_returns_one_row_per_ratio() -> None:
+    rng = np.random.default_rng(5)
+    n = 100
+    y_true = rng.integers(0, 2, size=n)
+    y_proba = np.where(
+        y_true == 1, rng.uniform(0.5, 1.0, n), rng.uniform(0.0, 0.5, n)
+    )
+    preds = FoldPredictions(
+        y_true=y_true.astype(int),
+        y_pred=(y_proba >= 0.5).astype(int),
+        y_proba=y_proba,
+    )
+    res = cost_sensitivity_analysis(preds, cost_ratios=[1.0, 5.0, 10.0])
+    assert len(res["sensitivity"]) == 3
+    assert [r["cost_ratio_fn_over_fp"] for r in res["sensitivity"]] == [1.0, 5.0, 10.0]
+
+
+def test_cost_sensitivity_threshold_monotone_in_ratio() -> None:
+    """FN コスト比が増えるほど、最適閾値は単調に下がる（または同じ）。"""
+    rng = np.random.default_rng(6)
+    n = 200
+    y_true = rng.integers(0, 2, size=n)
+    y_proba = np.where(
+        y_true == 1, rng.normal(0.6, 0.15, n), rng.normal(0.4, 0.15, n)
+    ).clip(0.01, 0.99)
+    preds = FoldPredictions(
+        y_true=y_true.astype(int),
+        y_pred=(y_proba >= 0.5).astype(int),
+        y_proba=y_proba,
+    )
+    res = cost_sensitivity_analysis(preds, cost_ratios=[1.0, 2.0, 5.0, 10.0, 50.0])
+    thresholds = [r["best_threshold"] for r in res["sensitivity"]]
+    # 単調非増加
+    for a, b in zip(thresholds, thresholds[1:]):
+        assert b <= a + 1e-9, f"threshold should be monotone non-increasing, got {thresholds}"
