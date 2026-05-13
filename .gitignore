@@ -46,3 +46,6 @@ shimizu-rag/papers/*.pdf
 shimizu-rag/db/
 shimizu-rag/.env
 shimizu-rag/.streamlit/secrets.toml
+
+# Reference repositories (cloned for reading, not for committing)
+references/
