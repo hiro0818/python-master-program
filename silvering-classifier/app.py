@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -44,14 +45,61 @@ st.set_page_config(
     layout="wide",
 )
 
+
+def _expected_password() -> str | None:
+    """環境変数 or Streamlit secrets からパスワードを取得。
+    どちらも未設定なら認証スキップ（ローカル開発用）。
+    """
+    pw = os.environ.get("APP_PASSWORD")
+    if pw:
+        return pw
+    try:
+        return st.secrets.get("APP_PASSWORD")  # type: ignore[no-any-return]
+    except (FileNotFoundError, KeyError, AttributeError):
+        return None
+
+
+def require_password() -> None:
+    """パスワード認証ゲート。未認証なら入力フォームを出して st.stop() する。"""
+    expected = _expected_password()
+    if expected is None:
+        return  # パスワード未設定 = ローカル/オープン環境
+    if st.session_state.get("authenticated"):
+        return
+
+    st.title("🔒 Silvering Classifier")
+    st.markdown("研究室メンバー限定のダッシュボードです。パスワードを入力してください。")
+    with st.form("auth", clear_on_submit=True):
+        pw = st.text_input("パスワード", type="password")
+        submitted = st.form_submit_button("入る")
+    if submitted:
+        if pw == expected:
+            st.session_state["authenticated"] = True
+            st.rerun()
+        else:
+            st.error("パスワードが違います")
+    st.stop()
+
+
+require_password()
+
+
 REPORT_PATH = ROOT / "models" / "evaluation_report.json"
+DEMO_REPORT_PATH = ROOT / "models" / "demo_evaluation_report.json"
 
 
 @st.cache_data
-def load_report() -> dict | None:
-    if not REPORT_PATH.exists():
-        return None
-    return json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+def load_report() -> tuple[dict | None, bool]:
+    """評価レポートを読む。本物が無ければデモにフォールバック。
+
+    Returns:
+        (report_dict, is_demo)
+    """
+    if REPORT_PATH.exists():
+        return json.loads(REPORT_PATH.read_text(encoding="utf-8")), False
+    if DEMO_REPORT_PATH.exists():
+        return json.loads(DEMO_REPORT_PATH.read_text(encoding="utf-8")), True
+    return None, False
 
 
 def preds_from_report(report: dict) -> FoldPredictions:
@@ -74,12 +122,14 @@ tab = st.sidebar.radio(
     ["Overview", "Evaluation", "Cost Playground", "Try It", "About"],
 )
 
-report = load_report()
+report, is_demo = load_report()
 if report is None:
     st.sidebar.warning(
         "`models/evaluation_report.json` が見つかりません。"
-        "`python scripts/03_run_baseline.py` を先に実行してください。"
+        "`python scripts/03_run_baseline.py` か `scripts/04_generate_demo_report.py` を実行してください。"
     )
+elif is_demo:
+    st.sidebar.info("📊 デモデータ表示中（合成予測値）。実データ訓練後に自動で切り替わります。")
 
 # ------------------------------- Overview -------------------------------
 
@@ -149,6 +199,8 @@ elif tab == "Evaluation":
     if report is None:
         st.error("評価レポートが見つかりません。先にベースラインを実行してください。")
         st.stop()
+    if is_demo:
+        st.info("📊 **デモデータ表示中** — 合成予測値での見た目確認用。実データ訓練後は本物の評価値に切り替わります。")
 
     preds = preds_from_report(report)
     metrics = report["metrics_at_0.5"]
@@ -201,6 +253,8 @@ elif tab == "Cost Playground":
     if report is None:
         st.error("評価レポートが見つかりません。")
         st.stop()
+    if is_demo:
+        st.info("📊 デモデータ表示中。")
 
     preds = preds_from_report(report)
 

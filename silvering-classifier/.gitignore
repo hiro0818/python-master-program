@@ -14,11 +14,14 @@ data/interim/
 models/*.pt
 models/*.pth
 models/gradcam/
+models/figures/
+models/_tmp_upload.png
 
-# レポート出力
+# レポート出力（実訓練の成果物は私的扱い、デモは公開可）
 models/confusion_matrix.png
 models/metrics.json
 models/*.csv
+models/evaluation_report.json
 
 # IDE
 .vscode/

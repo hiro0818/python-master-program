@@ -114,7 +114,39 @@ streamlit run app.py
 - **Try It** — 画像をアップロード → silvering_score + Grad-CAM
 - **About** — 設計思想 + 参照文献
 
-Streamlit Cloud にもデプロイ可能（shimizu-rag と同じ構成）。
+**デモモード**: `models/evaluation_report.json` が無い時は `demo_evaluation_report.json`
+（合成データ）に自動フォールバック。実訓練前でも全タブを動かせる。
+デモを再生成するには:
+```bash
+python scripts/04_generate_demo_report.py
+```
+
+### 7. Streamlit Cloud に非公開デプロイ
+
+研究室メンバーだけで共有する手順:
+
+1. **GitHub にプッシュ** (このリポジトリのまま)
+2. **https://share.streamlit.io にログイン** → "New app"
+3. **設定:**
+   - Repository: `hiro0818/python-master-program`
+   - Branch: `claude/ai-research-lab-integration-d7mYf`
+   - Main file path: `silvering-classifier/app.py`
+4. **Advanced settings → Secrets** に以下を貼る:
+   ```toml
+   APP_PASSWORD = "好きなパスワード"
+   ```
+5. **App settings → Privacy** で `Private` を選択（任意・追加防御）
+6. Deploy → 数分後に `xxxx.streamlit.app` のURLが発行される
+
+共有方法:
+- URL + パスワードを Slack DM / メールで研究室メンバーに伝える
+- パスワードを変えたい時は Streamlit Cloud の Secrets 画面で書き換え（コード変更不要）
+
+**注意:**
+- 学習済みモデル `models/*.pt` はリポジトリに含まれない（重いため）。
+  Try It タブで実推論が必要なら、別途 Hugging Face Hub 等で配布する必要あり。
+- 初回デプロイは torch のインストールに5〜10分かかる。2回目以降はキャッシュされる。
+- Streamlit Cloud Free tier はメモリ 1GB 制限。OOMになった場合は torch を `requirements.txt` から外してデモ専用にする（Try It 以外の4タブは torch 不要）。
 
 ### 7. 修論Figureだけ別途生成
 
