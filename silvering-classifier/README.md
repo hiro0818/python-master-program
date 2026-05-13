@@ -63,8 +63,14 @@ silvering-classifier/
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-train.txt   # 訓練・推論まで含むフル構成
+# ダッシュボード閲覧のみなら:
+# pip install -r requirements.txt
 ```
+
+`requirements.txt` はダッシュボード閲覧用の軽量構成（torch を含まない）。
+Streamlit Cloud Free tier の 1GB 制限に収めるためで、Try It タブは「モデル無し」のメッセージを返す。
+ローカルで Try It も動かすには `requirements-train.txt` を使う。
 
 ### 2. 画像を集める（scripts/01_collect_guide.md 参照）
 
@@ -143,10 +149,12 @@ python scripts/04_generate_demo_report.py
 - パスワードを変えたい時は Streamlit Cloud の Secrets 画面で書き換え（コード変更不要）
 
 **注意:**
-- 学習済みモデル `models/*.pt` はリポジトリに含まれない（重いため）。
-  Try It タブで実推論が必要なら、別途 Hugging Face Hub 等で配布する必要あり。
-- 初回デプロイは torch のインストールに5〜10分かかる。2回目以降はキャッシュされる。
-- Streamlit Cloud Free tier はメモリ 1GB 制限。OOMになった場合は torch を `requirements.txt` から外してデモ専用にする（Try It 以外の4タブは torch 不要）。
+- `requirements.txt` は意図的に軽量（torch 不要のダッシュボード4タブのみ動作）。
+  Streamlit Cloud Free tier の 1GB 制限内で確実にデプロイするため。
+- Try It タブはクラウド上では「モデル無し」エラーを返す（torch が無いため推論不可）。
+  実推論が必要なら、ローカルで `requirements-train.txt` を使うか、
+  Hugging Face Space 等の torch 込み環境にデプロイする。
+- 学習済みモデル `models/*.pt` はリポジトリに含まれない（重いため gitignore）。
 
 ### 7. 修論Figureだけ別途生成
 
