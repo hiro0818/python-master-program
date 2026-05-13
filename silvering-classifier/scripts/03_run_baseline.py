@@ -23,6 +23,7 @@ from src.evaluate import (  # noqa: E402
 )
 from src.exceptions import ClassifierError  # noqa: E402
 from src.train import train_cv  # noqa: E402
+from src.visualize import save_all_figures  # noqa: E402
 
 
 def main() -> int:
@@ -61,16 +62,27 @@ def main() -> int:
         shift = evaluate_distribution_shift(preds)
         print(json.dumps(shift, indent=2, ensure_ascii=False))
 
-        print("\n[5/5] 混同行列 と Grad-CAM")
+        print("\n[5/5] 混同行列・プレゼン用Figure・Grad-CAM を保存")
         cm_path = MODELS_DIR / "confusion_matrix.png"
         cm_result = plot_confusion_matrix(cm_path, preds=preds)
         print(f"✅ {cm_path}")
         print(f"   集計サンプル数: {cm_result['n']}")
 
-        save_gradcam_examples(fold=0, n_per_class=4)
-        print(f"✅ {GRADCAM_DIR}")
+        figures_dir = MODELS_DIR / "figures"
+        fig_paths = save_all_figures(
+            preds=preds,
+            cost_result=cost,
+            shift_result=shift,
+            metrics=metrics,
+            out_dir=figures_dir,
+        )
+        for name, path in fig_paths.items():
+            print(f"   📈 {name}: {path}")
 
-        # 全指標を JSON にも保存
+        save_gradcam_examples(fold=0, n_per_class=4)
+        print(f"✅ Grad-CAM: {GRADCAM_DIR}")
+
+        # 全指標と予測値を JSON に保存（Notebookで再可視化できるよう）
         report_path = MODELS_DIR / "evaluation_report.json"
         report_path.write_text(
             json.dumps(
@@ -80,6 +92,11 @@ def main() -> int:
                     "cost_optimization": cost,
                     "distribution_shift": shift,
                     "confusion_matrix": cm_result,
+                    "predictions": {
+                        "y_true": preds.y_true.tolist(),
+                        "y_pred": preds.y_pred.tolist(),
+                        "y_proba": preds.y_proba.tolist(),
+                    },
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -91,6 +108,7 @@ def main() -> int:
         print(f"📊 metrics.json: {MODELS_DIR / 'metrics.json'}")
         print(f"📋 evaluation_report.json: {report_path}")
         print(f"📈 confusion_matrix.png: {cm_path}")
+        print(f"🎨 figures/: {figures_dir}")
         print(f"🔍 Grad-CAM: {GRADCAM_DIR}")
         print("=" * 60)
         return 0
