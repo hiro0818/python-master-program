@@ -39,3 +39,12 @@ data/processed/
 *.key
 *.pem
 secrets/
+
+# 別プロジェクトのワークスペースファイル
+*.code-workspace
+
+# 誤作成アーティファクト
+Python!/
+
+# 一時メモファイル
+code/Untitled-*.py
