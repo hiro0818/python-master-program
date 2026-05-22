@@ -107,6 +107,24 @@ python scripts/03_run_baseline.py
 python src/predict.py path/to/image.jpg
 ```
 
+### 5.5. YOLOv8-cls との並列ベンチマーク（モデル選定根拠）
+
+EfficientNet-B0 と Ultralytics YOLOv8-cls を**同じデータ・同じ評価スキーマ**で比較する。
+修論で「2つのモデルファミリーで検証した」と言える章になる。
+
+```bash
+python scripts/05_train_yolo.py        # YOLOv8-cls 5-fold 訓練 → evaluation_report_yolo.json
+python scripts/06_compare_models.py    # 並列比較表 → models/model_comparison.json
+```
+
+出力:
+- `models/yolo_fold{0..4}.pt` — YOLOv8-cls の k-fold モデル
+- `models/evaluation_report_yolo.json` — YOLO の全指標（EfficientNet と同形式）
+- `models/model_comparison.json` — 並列比較（MCC/PR-AUC/F1 など）+ Markdown 表が標準出力
+
+YOLO は ImageFolder 構造（`train/<class>/`, `val/<class>/`）を要求するため、
+fold ごとに tempdir + symlink で動的に組み立てる（`src/model_yolo.py`）。
+
 ### 6. ダッシュボード（修論プレゼン・配属面談用）
 
 ```bash
