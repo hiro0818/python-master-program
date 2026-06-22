@@ -1,12 +1,12 @@
 # Hiro's Python Master Program
 
-5ヶ月で技術系ひとり創業者を目指す独学リポジトリ。
+10ヶ月で技術系ひとり創業者を目指す独学リポジトリ。
 
 ## 🎯 ミッション
-> 2026年10月時点で、Claude Code を相棒に AIプロダクトを企画・設計・実装・出荷・運用できる「ひとり創業者」になる。
+> 2027年3月時点で、Claude Code を相棒に AIプロダクトを企画・設計・実装・出荷・運用できる「ひとり創業者」になる。
 
 ## 📚 構成
-- [`CURRICULUM.md`](./CURRICULUM.md) ― 5ヶ月の全カリキュラム
+- [`CURRICULUM.md`](./CURRICULUM.md) ― 10ヶ月の全カリキュラム
 - [`LEARNING_RESOURCES.md`](./LEARNING_RESOURCES.md) ― 海外大学講義 / YouTube リソース集
 
 ## 🏗️ 進捗
